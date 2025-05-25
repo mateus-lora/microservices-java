@@ -1,6 +1,7 @@
 package br.edu.atitus.product_service.controllers;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Fallback;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -42,8 +43,13 @@ public class OpenProductController {
 			product.setConvertedPrice(product.getPrice());
 		} else {
 			CurrencyResponse currency = currencyClient.getCurrency(product.getPrice(),product.getCurrency(),targetCurrency);
-			product.setConvertedPrice(currency.getConvertedValue());
-			product.setEnvironment(product.getEnvironment() + " - " + currency.getEnviroment());
+			if (currency.getConvertedValue() != -1) {
+				product.setConvertedPrice(currency.getConvertedValue());
+				product.setEnvironment(product.getEnvironment() + " - " + currency.getEnviroment());
+			} else {
+				product.setConvertedPrice(product.getPrice());
+			}
+
 		}
 		return ResponseEntity.ok(product);
 	}

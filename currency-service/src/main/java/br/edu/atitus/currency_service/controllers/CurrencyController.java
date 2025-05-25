@@ -48,20 +48,26 @@ public class CurrencyController {
 		if (source.equals(target)) {
 			currency.setConversionRate(1);
 		} else {
-			double currencySource = 1;
-			double currencyTarget = 1;
-			if (!source.equals("BRL")) {
-				CurrencyBCResponse response = currencyBCClient.getCurrency(source);
-				if (response.getValue().isEmpty()) throw new Exception("Currency not found for " + source);
-				currencySource = response.getValue().get(0).getCotacaoVenda();
+			try {
+				double currencySource = 1;
+				double currencyTarget = 1;
+				if (!source.equals("BRL")) {
+					CurrencyBCResponse response = currencyBCClient.getCurrency(source);
+					if (response.getValue().isEmpty()) throw new Exception("Currency not found for " + source);
+					currencySource = response.getValue().get(0).getCotacaoVenda();
+				}
+				if (!target.equals("BRL")) {
+					CurrencyBCResponse response = currencyBCClient.getCurrency(target);
+					if (response.getValue().isEmpty()) throw new Exception("Currency not found for " + target);
+					currencyTarget = response.getValue().get(0).getCotacaoVenda();
+				}
+				currency.setConversionRate(currencySource / currencyTarget);
+				dataSource = "API BCB";
+			} catch (Exception e) {
+				currency = repository.findBySourceAndTarget(source, target)
+						.orElseThrow(() -> new Exception("Currency Unsupported"));
+				dataSource = "Local Database";
 			}
-			if (!target.equals("BRL")) {
-				CurrencyBCResponse response = currencyBCClient.getCurrency(target);
-				if (response.getValue().isEmpty()) throw new Exception("Currency not found for " + target);
-				currencyTarget = response.getValue().get(0).getCotacaoVenda();
-			}
-			currency.setConversionRate(currencySource / currencyTarget);
-			dataSource = "API BCB";
 		}
 		
 		currency.setConvertedValue(value * currency.getConversionRate());

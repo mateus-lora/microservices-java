@@ -17,57 +17,56 @@ import br.edu.atitus.product_service.repositories.ProductRepository;
 @RestController
 @RequestMapping("products")
 public class OpenProductController {
-	
+
 	private final ProductRepository repository;
 	private final CurrencyClient currencyClient;
 	private final CacheManager cacheManager;
 
-	public OpenProductController(ProductRepository repository, CurrencyClient currencyClient, CacheManager cacheManager) {
+	public OpenProductController(ProductRepository repository, CurrencyClient currencyClient,
+			CacheManager cacheManager) {
 		super();
 		this.repository = repository;
 		this.currencyClient = currencyClient;
 		this.cacheManager = cacheManager;
 	}
-	
+
 	@Value("${server.port}")
 	private int serverPort;
-	
+
 	@GetMapping("/{idProduct}/{targetCurrency}")
-	public ResponseEntity<ProductEntity> getProduct(
-			@PathVariable Long idProduct,
-			@PathVariable String targetCurrency
-			) throws Exception{
-		
+	public ResponseEntity<ProductEntity> getProduct(@PathVariable Long idProduct, @PathVariable String targetCurrency)
+			throws Exception {
+
+		targetCurrency = targetCurrency.toUpperCase();
 		String nameCache = "Product";
 		String keyCache = idProduct + targetCurrency;
-		
+
 		ProductEntity product = cacheManager.getCache(nameCache).get(keyCache, ProductEntity.class);
-		
-        String baseEnvironment = "Product-service running on port: " + serverPort;
-		
-		if (product != null) {
-            product.setEnvironment(baseEnvironment + " - Origin: Cache");
-		} else {
-			product = repository.findById(idProduct)
-                    .orElseThrow(() -> new Exception("Product Unsupported"));
+
+		if (product == null) {
+			product = repository.findById(idProduct).orElseThrow(() -> new Exception("Product not found"));
+			
+			product.setEnvironment("Product-service running on Port: " + serverPort);
+
 			if (product.getCurrency().equals(targetCurrency)) {
 				product.setConvertedPrice(product.getPrice());
-                product.setEnvironment(baseEnvironment + " - No conversion needed");
-				cacheManager.getCache(nameCache).put(keyCache, product);
 			} else {
-				CurrencyResponse currency = currencyClient.getCurrency(product.getPrice(),product.getCurrency(),targetCurrency);
-				if (currency.getConvertedValue() != -1) {
+				CurrencyResponse currency = currencyClient.getCurrency(product.getPrice(), product.getCurrency(),
+						targetCurrency);
+				if (currency != null) {
 					product.setConvertedPrice(currency.getConvertedValue());
-                    product.setEnvironment(baseEnvironment + " - Converted by " + currency.getEnviroment());
-    				cacheManager.getCache(nameCache).put(keyCache, product);
+					product.setEnvironment(product.getEnvironment() + " - " + currency.getEnviroment());
+					
+					cacheManager.getCache(nameCache).put(keyCache, product);
 				} else {
-					product.setConvertedPrice(product.getPrice());
-                    product.setEnvironment(baseEnvironment + " - Conversion Failed/Fallback");
+					product.setConvertedPrice(-1);
+					product.setEnvironment(product.getEnvironment() + " - Currency unavalaible");
 				}
-				
 			}
+			
+		} else {
+			product.setEnvironment("Product-service running on Port: " + serverPort + " - Datasource: cache");
 		}
-		
 		return ResponseEntity.ok(product);
 	}
 
